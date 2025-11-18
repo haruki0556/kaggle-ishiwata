@@ -71,8 +71,19 @@ categorical_cols = ["食事プランの種類",
                     "到着年",
                     "到着月",
                     ] 
+int_cols = [
+    "大人の数",
+    "子供の数",
+    "週末の宿泊数",
+    "平日の宿泊数",
+    "過去のキャンセル回数",
+    "過去のキャンセルされなかった予約数",
+    "一泊あたりの宿泊費",
+    "特別リクエストの数",
+    "予約日から到着日までの日数",
+]
 
-def column_translate(df,new_columns,columns_mappings_dict,categorical_cols):
+def preprocessing_pipeline(df,new_columns,columns_mappings_dict,categorical_cols,int_cols):
     #カラム名の翻訳
     df_renamed = df.rename(columns=new_columns)
 
@@ -98,17 +109,15 @@ def column_translate(df,new_columns,columns_mappings_dict,categorical_cols):
         random_state=42,
         stratify=y, # 分類問題では非常に重要
     )
-
-    #予約日から到着日までの日数　列を標準化
     # StandardScalerのインスタンス化
-    scaler = StandardScaler()
+    for col in int_cols:
+        scalar = StandardScaler()
+        std_column = scalar.fit_transform(X_train[[col]])
+        std_column_test = scalar.transform(X_test[[col]])
 
-    lead_time_std = scaler.fit_transform(X_train[["予約日から到着日までの日数"]])
-    X_train["予約日から到着日までの日数"] = lead_time_std
+        X_train[col] = std_column
+        X_test[col] = std_column_test
     
-    lead_time_std_test = scaler.transform(X_test[["予約日から到着日までの日数"]])
-    X_test["予約日から到着日までの日数"] = lead_time_std_test
-
     #one-hot-encoding
     #整数型に変換
     X_train["到着月"] = X_train['到着月'].astype(int)
@@ -119,14 +128,27 @@ def column_translate(df,new_columns,columns_mappings_dict,categorical_cols):
     X_train_encoded = pd.get_dummies(
         X_train, 
         columns=categorical_cols, 
-        drop_first=True # ダミー変数トラップ回避のため、最初のカテゴリを削除
+        drop_first=False # ダミー変数トラップ回避のため、最初のカテゴリを削除
     )
 
     X_test_encoded = pd.get_dummies(
         X_test, 
         columns=categorical_cols, 
-        drop_first=True # ダミー変数トラップ回避のため、最初のカテゴリを削除
+        drop_first=False # ダミー変数トラップ回避のため、最初のカテゴリを削除
     )
+    
+    X_train_encoded = X_train_encoded.copy().drop(columns=["到着月_6",
+                      "マーケットセグメント_法人予約",
+                      "到着年_2017",
+                      "予約された部屋のタイプ_タイプ1",
+                      "食事プランの種類_選択なし"],
+                      axis=1)
+    X_test_encoded = X_test_encoded.copy().drop(columns=["到着月_6",
+                      "マーケットセグメント_法人予約",
+                      "到着年_2017",
+                      "予約された部屋のタイプ_タイプ1",
+                      "食事プランの種類_選択なし"],
+                      axis=1)
 
     # c. カラム不一致の補正と順序合わせ (情報リーク防止のための必須ステップ)
     
